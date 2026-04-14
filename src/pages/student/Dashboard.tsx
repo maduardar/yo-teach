@@ -1,9 +1,8 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { FileText, RotateCcw, TrendingUp, Flame } from "lucide-react";
+import { BookOpen, FileText, RotateCcw, TrendingUp, Flame } from "lucide-react";
 import { useHomeworkStore } from "@/context/HomeworkContext";
 
 function average(values: number[]) {
@@ -17,7 +16,6 @@ function average(values: number[]) {
 export default function StudentDashboard() {
   const { currentStudent, getAssignedHomeworks, revisionItems } = useHomeworkStore();
   const assignedHomeworks = getAssignedHomeworks();
-  const nextHomework = assignedHomeworks[0];
   const currentStudentId = currentStudent?.id ?? "";
   const completedScores = assignedHomeworks
     .map((homework) => homework.studentProgress[currentStudentId])
@@ -25,9 +23,14 @@ export default function StudentDashboard() {
     .filter((progress) => progress.status === "completed")
     .map((progress) => progress.score);
   const revisionDue = revisionItems.filter((item) => item.studentId === currentStudentId && item.status === "due");
-  const vocabProgress = currentStudent?.vocabProgress ?? 100;
-  const grammarProgress = currentStudent?.grammarProgress ?? 100;
+  const learnedPhraseCount = currentStudent?.learnedPhraseCount ?? 0;
   const homeworkStreak = currentStudent?.homeworkStreak ?? 0;
+
+  // Show only the most recent incomplete homework
+  const nextHomework = assignedHomeworks.find((hw) => {
+    const progress = hw.studentProgress[currentStudentId];
+    return !progress || progress.status === "in-progress";
+  });
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -47,31 +50,32 @@ export default function StudentDashboard() {
               {completedScores.length}/{assignedHomeworks.length} assigned homeworks completed
             </div>
           </div>
-          <div className="text-2xl font-bold text-primary">{average(completedScores)}%</div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-primary">{average(completedScores)}%</div>
+            <div className="text-[10px] text-muted-foreground">avg score</div>
+          </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-2 gap-3">
-        <Card className="shadow-card">
-          <CardContent className="px-4 pb-3 pt-4">
-            <div className="mb-1 flex items-center gap-2 text-muted-foreground">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span className="text-xs">Vocabulary</span>
-            </div>
-            <Progress value={vocabProgress} className="mt-1 h-2" />
-            <div className="mt-1 text-xs text-muted-foreground">{vocabProgress}% on track</div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="px-4 pb-3 pt-4">
-            <div className="mb-1 flex items-center gap-2 text-muted-foreground">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span className="text-xs">Grammar</span>
-            </div>
-            <Progress value={grammarProgress} className="mt-1 h-2" />
-            <div className="mt-1 text-xs text-muted-foreground">{grammarProgress}% on track</div>
-          </CardContent>
-        </Card>
+        <Link to="/student/vocab">
+          <Card className="shadow-card hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="px-4 pb-3 pt-4 text-center">
+              <BookOpen className="mx-auto mb-1 h-5 w-5 text-primary" />
+              <div className="text-2xl font-bold">{learnedPhraseCount}</div>
+              <div className="text-xs text-muted-foreground">phrases learned</div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/student/revision">
+          <Card className="shadow-card hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="px-4 pb-3 pt-4 text-center">
+              <RotateCcw className="mx-auto mb-1 h-5 w-5 text-accent" />
+              <div className="text-2xl font-bold">{revisionDue.length}</div>
+              <div className="text-xs text-muted-foreground">revision due</div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <Card className="shadow-card">
@@ -86,7 +90,7 @@ export default function StudentDashboard() {
               <div className="mt-0.5 text-xs text-muted-foreground">
                 Due {nextHomework.dueDate} · {nextHomework.exercises.length} exercises
               </div>
-              <Link to="/student/homework">
+              <Link to={`/student/homework/exercise?homeworkId=${nextHomework.id}`}>
                 <Button className="mt-3 w-full" size="sm">
                   Start Homework
                 </Button>
@@ -94,7 +98,7 @@ export default function StudentDashboard() {
             </>
           ) : (
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              No homework is assigned yet. Once your teacher publishes work for your group, it will appear here.
+              No homework is due right now. Great job staying on top of things!
             </div>
           )}
         </CardContent>
@@ -126,6 +130,13 @@ export default function StudentDashboard() {
           </Link>
         </CardContent>
       </Card>
+
+      <Link to="/student/progress">
+        <Button variant="ghost" className="w-full gap-1.5 text-muted-foreground">
+          <TrendingUp className="h-4 w-4" />
+          View Progress
+        </Button>
+      </Link>
     </div>
   );
 }

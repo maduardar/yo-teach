@@ -38,17 +38,16 @@ export function MatchingPairsBoard({
   };
 
   return (
-    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Phrases</div>
         {pairs.map((pair, index) => (
           <div
             key={pair.left}
-            className="flex min-h-14 items-center rounded-xl border bg-muted/30 px-4 py-3 text-sm font-medium"
+            className={`flex min-h-12 items-center rounded-xl border px-4 py-3 text-sm font-medium ${
+              index % 2 === 0 ? "bg-muted/20" : "bg-muted/40"
+            }`}
           >
-            <span className="mr-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background text-xs text-muted-foreground">
-              {index + 1}
-            </span>
             <span>{pair.left}</span>
           </div>
         ))}
@@ -75,15 +74,12 @@ export function MatchingPairsBoard({
               setDraggedIndex(null);
             }}
             onDragEnd={() => setDraggedIndex(null)}
-            className={`flex min-h-14 items-center rounded-xl border px-3 py-2 text-sm transition-colors ${
+            className={`flex min-h-12 items-center rounded-xl border px-3 py-2 text-sm transition-colors ${
               interactive
                 ? "cursor-grab bg-background hover:border-primary/40 hover:bg-primary/5"
-                : "bg-muted/20"
+                : index % 2 === 0 ? "bg-muted/20" : "bg-muted/40"
             } ${draggedIndex === index ? "border-primary/60 bg-primary/10" : ""}`}
           >
-            <span className="mr-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
-              {index + 1}
-            </span>
             {interactive && <GripVertical className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />}
             <span className="flex-1">{meaning}</span>
             {interactive && onChange && (
@@ -92,10 +88,10 @@ export function MatchingPairsBoard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-7 w-7"
                   onClick={() => moveItem(index, index - 1)}
                   disabled={index === 0}
-                  aria-label={`Move meaning ${index + 1} up`}
+                  aria-label="Move up"
                 >
                   <ArrowUp className="h-3.5 w-3.5" />
                 </Button>
@@ -103,10 +99,10 @@ export function MatchingPairsBoard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-7 w-7"
                   onClick={() => moveItem(index, index + 1)}
                   disabled={index === rightOrder.length - 1}
-                  aria-label={`Move meaning ${index + 1} down`}
+                  aria-label="Move down"
                 >
                   <ArrowDown className="h-3.5 w-3.5" />
                 </Button>

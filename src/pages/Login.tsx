@@ -70,7 +70,8 @@ export default function Login() {
 
     try {
       const result = await signInWithCredentials(identifier, password);
-      navigate(result.role === "teacher" ? "/teacher" : "/student");
+      const redirect = searchParams.get("redirect");
+      navigate(redirect && redirect.startsWith("/") ? redirect : result.role === "teacher" ? "/teacher" : "/student");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to sign in.");
     } finally {
@@ -112,8 +113,8 @@ export default function Login() {
       <div className="w-full max-w-sm animate-fade-in">
         <div className="mb-8 text-center">
           <Link to="/" className="mb-6 inline-flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-hero text-sm font-bold text-primary-foreground">L</div>
-            <span className="text-xl font-semibold">LinguaAI</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-hero text-sm font-bold text-primary-foreground">Y</div>
+            <span className="text-xl font-semibold">YoTeach</span>
           </Link>
           <h1 className="mb-1 text-2xl font-bold">Welcome back</h1>
           <p className="text-sm text-muted-foreground">Sign in to continue or try the demo</p>
@@ -177,7 +178,8 @@ export default function Login() {
 
                 try {
                   await signInAsStudentDemo(demoStudent.id);
-                  navigate("/student");
+                  const redirect = searchParams.get("redirect");
+                  navigate(redirect && redirect.startsWith("/") ? redirect : "/student");
                 } catch (error) {
                   toast.error(error instanceof Error ? error.message : "Unable to sign in as the demo student.");
                 }

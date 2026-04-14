@@ -29,6 +29,7 @@ export type StudentRecord = {
   vocabProgress: number;
   grammarProgress: number;
   homeworkStreak: number;
+  learnedPhraseCount: number;
 };
 
 export type GroupRecord = {
@@ -338,10 +339,22 @@ export type HomeworkSubmissionRequest = {
   }[];
 };
 
+export type AnswerFeedback = {
+  exerciseId: string;
+  exerciseType: string;
+  questionKey: string;
+  questionText: string;
+  answerValue: string | number | string[];
+  correctValue: string | number | string[] | null;
+  isCorrect: boolean | null;
+  explanation: string | null;
+};
+
 export type HomeworkSubmissionResponse = {
   submissionId: string;
   score: number;
   status: "completed" | "pending-review";
+  answers: AnswerFeedback[];
 };
 
 export type HomeworkSubmissionResult = {
@@ -349,6 +362,7 @@ export type HomeworkSubmissionResult = {
   homeworkTitle: string;
   score: number;
   status: "completed" | "pending-review";
+  answers: AnswerFeedback[];
 };
 
 export type TeacherRegistrationRequest = {

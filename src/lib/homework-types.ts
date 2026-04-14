@@ -9,6 +9,7 @@ export type ExerciseSource = {
 export type ExerciseQuestion = {
   id: string;
   text: string;
+  hint?: string;
   answer: string | number;
   options?: string[];
   acceptableAnswers?: string[];

@@ -36,8 +36,8 @@ export default function TeacherLayout() {
       <aside className="hidden lg:flex flex-col w-60 bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-30">
         <div className="p-5 border-b border-sidebar-border">
           <Link to="/teacher" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center text-sm font-bold text-primary-foreground">L</div>
-            <span className="font-semibold text-lg text-sidebar-accent-foreground">LinguaAI</span>
+            <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center text-sm font-bold text-primary-foreground">Y</div>
+            <span className="font-semibold text-lg text-sidebar-accent-foreground">YoTeach</span>
           </Link>
         </div>
         <nav className="flex-1 p-3 space-y-1">
@@ -74,7 +74,7 @@ export default function TeacherLayout() {
         <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2">
           <Menu className="w-5 h-5" />
         </button>
-        <span className="ml-2 font-semibold">LinguaAI</span>
+        <span className="ml-2 font-semibold">YoTeach</span>
       </div>
 
       {/* Mobile drawer */}
@@ -83,7 +83,7 @@ export default function TeacherLayout() {
           <div className="absolute inset-0 bg-foreground/30" onClick={() => setMobileOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-64 bg-sidebar text-sidebar-foreground flex flex-col">
             <div className="p-5 flex items-center justify-between border-b border-sidebar-border">
-              <span className="font-semibold text-lg text-sidebar-accent-foreground">LinguaAI</span>
+              <span className="font-semibold text-lg text-sidebar-accent-foreground">YoTeach</span>
               <button onClick={() => setMobileOpen(false)}><X className="w-5 h-5" /></button>
             </div>
             <nav className="flex-1 p-3 space-y-1">

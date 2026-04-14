@@ -23,8 +23,8 @@ export default function Landing() {
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center text-sm font-bold text-primary-foreground">L</div>
-            <span className="font-semibold text-lg">LinguaAI</span>
+            <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center text-sm font-bold text-primary-foreground">Y</div>
+            <span className="font-semibold text-lg">YoTeach</span>
           </div>
           <Link to="/login">
             <Button size="sm">Sign in</Button>
@@ -43,7 +43,7 @@ export default function Landing() {
             Teach smarter,<br />not harder
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto mb-8">
-            Log your lesson, get instant homework. Track each student's weak points. Spaced revision that actually works. Built for teachers of Russian-speaking learners.
+            Log your lesson, get instant homework. Track each student's weak points. Spaced revision that actually works. Happy Birthday, Caught!
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/login">
@@ -81,7 +81,7 @@ export default function Landing() {
       {/* Benefits */}
       <section className="py-16 px-4">
         <div className="max-w-2xl mx-auto bg-card rounded-2xl p-8 md:p-10 shadow-card">
-          <h2 className="text-xl font-bold mb-6">Why teachers love LinguaAI</h2>
+          <h2 className="text-xl font-bold mb-6">Why teachers love YoTeach</h2>
           <div className="space-y-3">
             {benefits.map((b) => (
               <div key={b} className="flex items-start gap-3">
@@ -95,7 +95,7 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="border-t py-8 px-4 text-center text-sm text-muted-foreground">
-        <p>LinguaAI — AI-powered English teaching assistant. Prototype 2026.</p>
+        <p>YoTeach — AI-powered English teaching assistant. Prototype 2026.</p>
       </footer>
     </div>
   );

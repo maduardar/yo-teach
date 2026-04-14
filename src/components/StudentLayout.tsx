@@ -32,8 +32,8 @@ export default function StudentLayout() {
       {/* Top header */}
       <header className="sticky top-0 z-30 bg-card border-b px-4 h-14 flex items-center justify-between">
         <Link to="/student" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center text-xs font-bold text-primary-foreground">L</div>
-          <span className="font-semibold">LinguaAI</span>
+          <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center text-xs font-bold text-primary-foreground">Y</div>
+          <span className="font-semibold">YoTeach</span>
         </Link>
         <button type="button" onClick={signOut} className="text-muted-foreground hover:text-foreground transition-colors">
           <LogOut className="w-4 h-4" />

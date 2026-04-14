@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { MatchingPairsBoard } from "@/components/MatchingPairsBoard";
+import { SentenceBuildingBoard } from "@/components/SentenceBuildingBoard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
@@ -82,8 +93,9 @@ function renderGapFillSentence(
   value: string,
   onChange: (nextValue: string) => void,
 ) {
-  const blankWidth = `${Math.max(String(question.answer).length + 2, 8)}ch`;
   const segments = question.text.split("___");
+  const blankCount = segments.length - 1;
+  const hint = question.hint ?? "";
 
   if (segments.length === 1) {
     return (
@@ -92,7 +104,7 @@ function renderGapFillSentence(
         <Input
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="Type your answer"
+          placeholder={hint || "Type your answer"}
           className="h-11 max-w-xs"
           data-testid={`gap-fill-input-${question.id}`}
         />
@@ -100,21 +112,51 @@ function renderGapFillSentence(
     );
   }
 
+  if (blankCount === 1) {
+    const blankWidth = `${Math.max(hint.length || String(question.answer).length + 2, 8)}ch`;
+    return (
+      <label className="block text-base font-medium leading-8 text-foreground">
+        <span>{segments[0]}</span>
+        <Input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={hint || ""}
+          className="mx-2 inline-flex h-11 rounded-none border-0 border-b-2 border-primary/40 bg-transparent px-0 text-center text-base font-semibold shadow-none focus-visible:ring-0 placeholder:font-normal placeholder:text-muted-foreground/50"
+          style={{ width: blankWidth }}
+          data-testid={`gap-fill-input-${question.id}`}
+        />
+        <span>{segments[1]}</span>
+      </label>
+    );
+  }
+
+  // Multiple blanks: split value by "," or store as comma-separated
+  const gapValues = value.split(",").map((v) => v.trimStart());
+  while (gapValues.length < blankCount) gapValues.push("");
+
+  const updateGap = (gapIndex: number, gapValue: string) => {
+    const updated = [...gapValues];
+    updated[gapIndex] = gapValue;
+    onChange(updated.join(", "));
+  };
+
   return (
-    <label className="block text-base font-medium leading-8 text-foreground">
-      <span>{segments[0]}</span>
-      <Input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="answer"
-        className="mx-2 inline-flex h-11 rounded-none border-0 border-b-2 border-primary/40 bg-transparent px-0 text-center text-base font-semibold shadow-none focus-visible:ring-0"
-        style={{ width: blankWidth }}
-        data-testid={`gap-fill-input-${question.id}`}
-      />
-      {segments.slice(1).map((segment, index) => (
-        <span key={`${question.id}-${index}`}>{segment}</span>
+    <div className="block text-base font-medium leading-8 text-foreground">
+      {segments.map((segment, index) => (
+        <span key={`${question.id}-seg-${index}`}>
+          <span>{segment}</span>
+          {index < blankCount && (
+            <Input
+              value={gapValues[index] ?? ""}
+              onChange={(event) => updateGap(index, event.target.value)}
+              placeholder={index === 0 && hint ? hint : ""}
+              className="mx-1 inline-flex h-9 w-28 rounded-none border-0 border-b-2 border-primary/40 bg-transparent px-0 text-center text-base font-semibold shadow-none focus-visible:ring-0 placeholder:font-normal placeholder:text-muted-foreground/50"
+              data-testid={`gap-fill-input-${question.id}-${index}`}
+            />
+          )}
+        </span>
       ))}
-    </label>
+    </div>
   );
 }
 
@@ -131,6 +173,7 @@ export default function HomeworkExercise() {
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [matchingOrders, setMatchingOrders] = useState<Record<string, string[]>>(() => buildMatchingState(homework?.exercises ?? []));
   const [submitting, setSubmitting] = useState(false);
+  const [showSubmitWarning, setShowSubmitWarning] = useState(false);
 
   useEffect(() => {
     setMatchingOrders(buildMatchingState(homework?.exercises ?? []));
@@ -159,6 +202,28 @@ export default function HomeworkExercise() {
 
   const setAnswer = (id: string, value: string | number) => {
     setAnswers((currentAnswers) => ({ ...currentAnswers, [id]: value }));
+  };
+
+  const countUnanswered = () => {
+    let count = 0;
+    for (const s of steps) {
+      if (s.type === "matching") continue;
+      const key = getQuestionAnswerKey(s.exerciseId, s.question.id);
+      const val = answers[key];
+      if (val === undefined || val === "" || (s.type === "multiple-choice" && typeof val !== "number")) {
+        count++;
+      }
+    }
+    return count;
+  };
+
+  const confirmSubmit = () => {
+    const unanswered = countUnanswered();
+    if (unanswered > 0) {
+      setShowSubmitWarning(true);
+    } else {
+      void handleSubmit();
+    }
   };
 
   const handleSubmit = async () => {
@@ -210,6 +275,7 @@ export default function HomeworkExercise() {
         homeworkTitle: homework.title,
         score: response.score,
         status: response.status,
+        answers: response.answers,
       });
       await refreshAssignedHomeworks();
       toast.success(response.status === "pending-review" ? "Homework submitted." : "Homework submitted.");
@@ -306,8 +372,19 @@ export default function HomeworkExercise() {
             </div>
           ) : current.type === "error-correction" ? (
             <div className="space-y-4">
-              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm">
+              <div className="relative rounded-lg border border-destructive/20 bg-destructive/5 p-4 pr-10 text-sm">
                 {current.question.incorrectText}
+                <button
+                  type="button"
+                  className="absolute top-2 right-2 p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText(current.question.incorrectText ?? "");
+                    toast.success("Copied to clipboard");
+                  }}
+                  title="Copy to clipboard"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
               </div>
               <Input
                 placeholder="Rewrite the sentence correctly"
@@ -317,21 +394,11 @@ export default function HomeworkExercise() {
               />
             </div>
           ) : current.type === "sentence-building" ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {(current.question.tokens ?? []).map((token) => (
-                  <Badge key={`${current.question.id}-${token}`} variant="outline" className="text-sm">
-                    {token}
-                  </Badge>
-                ))}
-              </div>
-              <Input
-                placeholder="Build the sentence"
-                value={String(answers[getQuestionAnswerKey(current.exerciseId, current.question.id)] ?? "")}
-                onChange={(event) => setAnswer(getQuestionAnswerKey(current.exerciseId, current.question.id), event.target.value)}
-                className="h-11"
-              />
-            </div>
+            <SentenceBuildingBoard
+              tokens={current.question.tokens ?? []}
+              value={String(answers[getQuestionAnswerKey(current.exerciseId, current.question.id)] ?? "")}
+              onChange={(nextValue) => setAnswer(getQuestionAnswerKey(current.exerciseId, current.question.id), nextValue)}
+            />
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
@@ -346,6 +413,16 @@ export default function HomeworkExercise() {
                 onChange={(event) => setAnswer(getQuestionAnswerKey(current.exerciseId, current.question.id), event.target.value)}
                 className="min-h-32"
               />
+              {(() => {
+                const text = String(answers[getQuestionAnswerKey(current.exerciseId, current.question.id)] ?? "");
+                const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+                const minWords = current.question.minWords;
+                return (
+                  <p className={`text-xs ${minWords && wordCount < minWords ? "text-destructive" : "text-muted-foreground"}`}>
+                    {wordCount} {wordCount === 1 ? "word" : "words"}{minWords ? ` / ${minWords} min` : ""}
+                  </p>
+                );
+              })()}
               {(current.question.requiredPhrases ?? []).length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">Required phrases</p>
@@ -380,12 +457,34 @@ export default function HomeworkExercise() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         ) : (
-          <Button size="sm" onClick={() => void handleSubmit()} className="gap-1" disabled={submitting}>
-            <Check className="h-4 w-4" />
-            {submitting ? "Submitting..." : "Submit"}
+          <Button size="sm" onClick={confirmSubmit} className="gap-1" disabled={submitting}>
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {submitting ? "Checking answers..." : "Submit"}
           </Button>
         )}
       </div>
+
+      <AlertDialog open={showSubmitWarning} onOpenChange={setShowSubmitWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unanswered questions</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have {countUnanswered()} unanswered {countUnanswered() === 1 ? "question" : "questions"}. They will be scored as incorrect. Submit anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowSubmitWarning(false);
+                void handleSubmit();
+              }}
+            >
+              Submit anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

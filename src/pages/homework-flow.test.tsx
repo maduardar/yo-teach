@@ -16,7 +16,7 @@ const testHomeworkBase: Homework = {
   title: "Travel & Tenses — Homework #12",
   dueDate: "2026-03-31",
   status: "published",
-  shareLink: "https://app.example.com/hw/abc123",
+  shareLink: "http://localhost:8080/hw/abc123",
   composition: { latestLesson: 50, revision: 30, weakPoints: 20 },
   exercises: [
     {

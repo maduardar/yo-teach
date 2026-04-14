@@ -47,7 +47,7 @@ import {
   updateHomeworkGenerationJob,
 } from "./homework-generation-jobs";
 
-const REVIEW_INTERVALS = [3, 7, 14, 30, 60];
+const REVIEW_INTERVALS = [1, 3, 7, 14, 30, 60];
 
 function serializeId(value: number) {
   return String(value);
@@ -66,12 +66,33 @@ function normalizeText(value: string) {
   return value.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ");
 }
 
-function shuffleDeterministically(items: string[]) {
+function seededRandom(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+  }
+  return () => {
+    hash = (hash * 1664525 + 1013904223) | 0;
+    return ((hash >>> 0) / 0x100000000);
+  };
+}
+
+function shuffleDeterministically(items: string[], seed?: string) {
   if (items.length <= 1) {
     return [...items];
   }
 
-  return [...items.slice(1), items[0]];
+  const result = [...items];
+  const rng = seededRandom(seed ?? items.join(","));
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  // If shuffle produced the original order, swap first two
+  if (result.every((item, idx) => item === items[idx])) {
+    [result[0], result[1]] = [result[1], result[0]];
+  }
+  return result;
 }
 
 const geminiExerciseResponseSchema = z.object({
@@ -248,7 +269,7 @@ function createOpenAIExerciseFormat(
 
 const openAIGapFillExerciseFormat = createOpenAIExerciseFormat(
   "homework_gap_fill_exercise",
-  "Exact Lingua Flow gap-fill exercise format.",
+  "Exact YoTeach gap-fill exercise format.",
   jsonSchemaObject(
     {
       type: { type: "string", enum: ["GAP_FILL"] },
@@ -267,7 +288,7 @@ const openAIGapFillExerciseFormat = createOpenAIExerciseFormat(
 
 const openAIMultipleChoiceExerciseFormat = createOpenAIExerciseFormat(
   "homework_multiple_choice_exercise",
-  "Exact Lingua Flow multiple-choice exercise format.",
+  "Exact YoTeach multiple-choice exercise format.",
   jsonSchemaObject(
     {
       type: { type: "string", enum: ["MULTIPLE_CHOICE"] },
@@ -286,7 +307,7 @@ const openAIMultipleChoiceExerciseFormat = createOpenAIExerciseFormat(
 
 const openAIPhraseExplanationExerciseFormat = createOpenAIExerciseFormat(
   "homework_phrase_explanation_exercise",
-  "Exact Lingua Flow phrase-explanation exercise format.",
+  "Exact YoTeach phrase-explanation exercise format.",
   jsonSchemaObject(
     {
       type: { type: "string", enum: ["PHRASE_EXPLANATION"] },
@@ -305,7 +326,7 @@ const openAIPhraseExplanationExerciseFormat = createOpenAIExerciseFormat(
 
 const openAIMatchingExerciseFormat = createOpenAIExerciseFormat(
   "homework_matching_exercise",
-  "Exact Lingua Flow matching exercise format.",
+  "Exact YoTeach matching exercise format.",
   jsonSchemaObject(
     {
       type: { type: "string", enum: ["MATCHING"] },
@@ -325,7 +346,7 @@ const openAIMatchingExerciseFormat = createOpenAIExerciseFormat(
 
 const openAIOpenAnswerExerciseFormat = createOpenAIExerciseFormat(
   "homework_open_answer_exercise",
-  "Exact Lingua Flow open-answer exercise format.",
+  "Exact YoTeach open-answer exercise format.",
   jsonSchemaObject(
     {
       type: { type: "string", enum: ["OPEN_ANSWER"] },
@@ -344,7 +365,7 @@ const openAIOpenAnswerExerciseFormat = createOpenAIExerciseFormat(
 
 const openAIErrorCorrectionExerciseFormat = createOpenAIExerciseFormat(
   "homework_error_correction_exercise",
-  "Exact Lingua Flow error-correction exercise format.",
+  "Exact YoTeach error-correction exercise format.",
   jsonSchemaObject(
     {
       type: { type: "string", enum: ["ERROR_CORRECTION"] },
@@ -363,7 +384,7 @@ const openAIErrorCorrectionExerciseFormat = createOpenAIExerciseFormat(
 
 const openAISentenceBuildingExerciseFormat = createOpenAIExerciseFormat(
   "homework_sentence_building_exercise",
-  "Exact Lingua Flow sentence-building exercise format.",
+  "Exact YoTeach sentence-building exercise format.",
   jsonSchemaObject(
     {
       type: { type: "string", enum: ["SENTENCE_BUILDING"] },
@@ -743,6 +764,7 @@ function mapHomeworkExercise(exercise: {
   const questions = parsedPayload.questions.map((question) => ({
     id: question.key,
     text: question.prompt,
+    hint: "hint" in question ? question.hint ?? undefined : undefined,
     answer:
       "correctOptionIndex" in question
         ? question.correctOptionIndex
@@ -828,7 +850,7 @@ export function mapHomeworkRecord(homework: {
     dueDate: homework.dueDate.toISOString().slice(0, 10),
     status:
       homework.status === HomeworkSetStatus.DRAFT ? "draft" : homework.status === HomeworkSetStatus.ARCHIVED ? "archived" : "published",
-    shareLink: `https://app.example.com/hw/${homework.shareToken}`,
+    shareLink: `${process.env.APP_ORIGIN || "http://localhost:8080"}/hw/${homework.shareToken}`,
     composition: {
       latestLesson: homework.compositionLatestLessonPct ?? 0,
       revision: homework.compositionRevisionPct ?? 0,
@@ -1434,7 +1456,7 @@ function createStubProvider(): HomeworkGenerationProvider {
                       weakPoint && requiredPhrases.length > 0
                         ? `Write 3-4 sentences about the lesson topic. Use ${requiredPhrases.join(", ")} and avoid the mistake pattern "${weakPoint.area}".`
                         : `Write 3-4 sentences about ${context.lesson.title}. Use ${requiredPhrases.join(", ")}.`,
-                    minWords: 35,
+                    minWords: requiredPhrases.length <= 2 ? 40 : requiredPhrases.length <= 3 ? 60 : Math.min(100, requiredPhrases.length * 20),
                     requiredPhrases,
                     targetMistakePattern: weakPoint?.area ?? null,
                     sampleAnswer: null,
@@ -1513,6 +1535,15 @@ function createStubProvider(): HomeworkGenerationProvider {
     async evaluateOpenAnswer({ prompt, answer, requiredPhrases }) {
       const normalizedAnswer = normalizeText(answer);
       const matchedRequiredPhrases = requiredPhrases.filter((phrase) => normalizedAnswer.includes(normalizeText(phrase)));
+      const missingPhrases = requiredPhrases.filter((phrase) => !normalizedAnswer.includes(normalizeText(phrase)));
+      let explanation: string;
+      if (requiredPhrases.length === 0) {
+        explanation = "Your answer was recorded. Detailed AI feedback is not available right now — your teacher will review it.";
+      } else if (missingPhrases.length === 0) {
+        explanation = "You used all the required phrases correctly.";
+      } else {
+        explanation = `You needed to use ${missingPhrases.map((p) => `«${p}»`).join(", ")} but ${missingPhrases.length === 1 ? "it's" : "they're"} missing from your answer.`;
+      }
       return {
         mode: "stub_auto",
         isCorrect: requiredPhrases.length === 0 || matchedRequiredPhrases.length === requiredPhrases.length,
@@ -1520,10 +1551,7 @@ function createStubProvider(): HomeworkGenerationProvider {
           requiredPhrases.length === 0
             ? Math.min(100, Math.max(60, answer.trim().split(/\s+/).filter(Boolean).length * 4))
             : Math.round((matchedRequiredPhrases.length / requiredPhrases.length) * 100),
-        explanation:
-          matchedRequiredPhrases.length === requiredPhrases.length
-            ? "Fallback review matched the required target phrases."
-            : "Fallback review found that some required target phrases were missing.",
+        explanation,
       };
     },
   };
@@ -1593,11 +1621,17 @@ function createGeminiProvider(): HomeworkGenerationProvider {
     },
     async evaluateOpenAnswer({ prompt, answer, requiredPhrases }) {
       const systemPrompt = [
-        "You evaluate short ESL homework answers as strict JSON.",
-        "Return only valid JSON with no markdown.",
-        "Judge whether the student sufficiently answered the task in English.",
-        "Required phrases should strongly influence correctness.",
-        "Use score 0-100 and provide one concise explanation sentence.",
+        "You are an experienced, warm ESL teacher reviewing a student's written homework answer. Return strict JSON only, no markdown.",
+        "Your explanation should read like a short teacher comment — human, specific, and encouraging without being over-the-top.",
+        "Guidelines for the explanation field:",
+        "- Start by noting what the student did well (good vocabulary, correct structure, clear idea) — be specific, not generic.",
+        "- If the student uses an unnatural or awkward phrasing, suggest a more natural alternative in this format: Instead of «student phrase» you could say «natural alternative» — it sounds more natural.",
+        "- If required phrases are missing, explicitly state which ones are absent: You needed to use «phrase» but it's missing from your answer.",
+        "- If the answer is off-topic or too short, say so directly but kindly.",
+        "- Keep the explanation to 2-4 sentences. Do not use bullet points.",
+        "- Score 0-100: 85-100 = strong answer with minor issues at most, 60-84 = acceptable but has noticeable gaps, below 60 = significant problems.",
+        "- Do not penalize if the word count is within 10% below the minimum requirement.",
+        "Required phrases should strongly influence correctness and score.",
       ].join(" ");
       const userPrompt = JSON.stringify(
         {
@@ -1608,7 +1642,7 @@ function createGeminiProvider(): HomeworkGenerationProvider {
           output: {
             isCorrect: "boolean",
             score: "integer 0-100",
-            explanation: "short sentence",
+            explanation: "2-4 sentence teacher-style comment",
           },
         },
         null,
@@ -1703,11 +1737,17 @@ function createOpenAIProvider(): HomeworkGenerationProvider {
     },
     async evaluateOpenAnswer({ prompt, answer, requiredPhrases }) {
       const systemPrompt = [
-        "You evaluate short ESL homework answers as strict JSON.",
-        "Return only a response that matches the provided JSON schema exactly.",
-        "Judge whether the student sufficiently answered the task in English.",
-        "Required phrases should strongly influence correctness.",
-        "Use score 0-100 and provide one concise explanation sentence.",
+        "You are an experienced, warm ESL teacher reviewing a student's written homework answer. Return only a response that matches the provided JSON schema exactly.",
+        "Your explanation should read like a short teacher comment — human, specific, and encouraging without being over-the-top.",
+        "Guidelines for the explanation field:",
+        "- Start by noting what the student did well (good vocabulary, correct structure, clear idea) — be specific, not generic.",
+        "- If the student uses an unnatural or awkward phrasing, suggest a more natural alternative in this format: Instead of «student phrase» you could say «natural alternative» — it sounds more natural.",
+        "- If required phrases are missing, explicitly state which ones are absent: You needed to use «phrase» but it's missing from your answer.",
+        "- If the answer is off-topic or too short, say so directly but kindly.",
+        "- Keep the explanation to 2-4 sentences. Do not use bullet points.",
+        "- Score 0-100: 85-100 = strong answer with minor issues at most, 60-84 = acceptable but has noticeable gaps, below 60 = significant problems.",
+        "- Do not penalize if the word count is within 10% below the minimum requirement.",
+        "Required phrases should strongly influence correctness and score.",
       ].join(" ");
       const userPrompt = JSON.stringify(
         {
@@ -1718,12 +1758,12 @@ function createOpenAIProvider(): HomeworkGenerationProvider {
           output: {
             isCorrect: "boolean",
             score: "integer 0-100",
-            explanation: "short sentence",
+            explanation: "2-4 sentence teacher-style comment",
           },
         },
         null,
-          2,
-        );
+        2,
+      );
 
       const response = await callOpenAI(
         geminiOpenAnswerEvaluationSchema,
@@ -1773,6 +1813,7 @@ function createFallbackProviderChain(providers: HomeworkGenerationProvider[]): H
         try {
           return await provider.evaluateOpenAnswer(input);
         } catch (error) {
+          console.error(`[evaluateOpenAnswer] provider failed:`, error instanceof Error ? error.message : error);
           lastError = error;
         }
       }
@@ -3074,7 +3115,7 @@ export async function submitHomeworkAnswers(
   }
 
   const mappedExercises = homework.exercises.map((exercise) => mapHomeworkExercise(exercise));
-  const provider = getHomeworkGenerationProvider();
+  const provider = getHomeworkGenerationProvider("auto");
   const submission = homework.submissions[0]
     ? await prisma.homeworkSubmission.update({
         where: { id: homework.submissions[0].id },
@@ -3099,6 +3140,16 @@ export async function submitHomeworkAnswers(
   let scorableCount = 0;
   let scoredPoints = 0;
   let hasPendingReview = false;
+  const answerResults: {
+    exerciseId: string;
+    exerciseType: string;
+    questionKey: string;
+    questionText: string;
+    answerValue: string | number | string[];
+    correctValue: string | number | string[] | null;
+    isCorrect: boolean | null;
+    explanation: string | null;
+  }[] = [];
 
   for (const submittedAnswer of answers) {
     const exercise = mappedExercises.find((item) => item.id === submittedAnswer.exerciseId);
@@ -3121,13 +3172,19 @@ export async function submitHomeworkAnswers(
             answer: String(submittedAnswer.value),
             requiredPhrases: question.requiredPhrases ?? [],
           })
-        : null;
+        : exercise.type === "phrase-explanation"
+          ? await provider.evaluateOpenAnswer({
+              prompt: `The student was asked to explain the phrase: "${question.text}". The designed answer is: "${question.answer}". Is the student's explanation generally correct? If correct but differently worded, mark correct and suggest: "You can also say: ${question.answer}".`,
+              answer: String(submittedAnswer.value),
+              requiredPhrases: [],
+            })
+          : null;
 
     const { isCorrect, correctValue, pendingReview } =
-      exercise.type === "open-answer"
+      exercise.type === "open-answer" || exercise.type === "phrase-explanation"
         ? {
             isCorrect: evaluation?.isCorrect ?? false,
-            correctValue: null,
+            correctValue: exercise.type === "phrase-explanation" ? String(question.answer) : null,
             pendingReview: false,
           }
         : evaluateAnswer(exercise, question, submittedAnswer.value);
@@ -3136,7 +3193,7 @@ export async function submitHomeworkAnswers(
       hasPendingReview = true;
     } else {
       scorableCount += 1;
-      scoredPoints += exercise.type === "open-answer" ? evaluation?.score ?? (isCorrect ? 100 : 0) : isCorrect ? 100 : 0;
+      scoredPoints += evaluation ? evaluation.score ?? (isCorrect ? 100 : 0) : isCorrect ? 100 : 0;
     }
 
     await prisma.homeworkAnswer.create({
@@ -3149,6 +3206,17 @@ export async function submitHomeworkAnswers(
         isCorrect,
         submittedAt: new Date(),
       },
+    });
+
+    answerResults.push({
+      exerciseId: submittedAnswer.exerciseId,
+      exerciseType: exercise.type,
+      questionKey: submittedAnswer.questionKey,
+      questionText: question.text,
+      answerValue: submittedAnswer.value,
+      correctValue,
+      isCorrect,
+      explanation: evaluation?.explanation ?? null,
     });
 
     await updateRevisionStateFromAnswer({
@@ -3175,6 +3243,7 @@ export async function submitHomeworkAnswers(
     submissionId: serializeId(submission.id),
     score,
     status: hasPendingReview ? "pending-review" : "completed",
+    answers: answerResults,
   };
 }
 

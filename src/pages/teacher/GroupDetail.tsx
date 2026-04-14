@@ -208,6 +208,8 @@ export default function GroupDetail() {
               student.inviteToken && typeof window !== "undefined"
                 ? `${window.location.origin}/invite/${student.inviteToken}`
                 : null;
+            const inviteExpiresAt = student.inviteExpiresAt ? new Date(student.inviteExpiresAt) : null;
+            const daysLeft = inviteExpiresAt ? Math.max(0, Math.ceil((inviteExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
 
             return (
               <div
@@ -245,6 +247,11 @@ export default function GroupDetail() {
                 {inviteLink && (
                   <div className="mx-4 flex items-center gap-2 rounded-lg bg-muted/60 p-3">
                     <span className="flex-1 truncate text-xs text-muted-foreground">{inviteLink}</span>
+                    {daysLeft !== null && (
+                      <span className={`text-xs whitespace-nowrap ${daysLeft <= 2 ? "text-destructive" : "text-muted-foreground"}`}>
+                        {daysLeft}d left
+                      </span>
+                    )}
                     <Button
                       type="button"
                       variant="outline"

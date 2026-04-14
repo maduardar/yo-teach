@@ -30,7 +30,7 @@ export async function sendTeacherVerificationEmail(input: {
     body: JSON.stringify({
       from: emailFrom,
       to: [input.email],
-      subject: "Confirm your Lingua Flow teacher account",
+      subject: "Confirm your YoTeach teacher account",
       html: `
         <p>Hi ${input.firstName},</p>
         <p>Confirm your email to activate your teacher account:</p>

@@ -9,8 +9,10 @@ import {
   createStudentForGroup,
   getSession,
   getTeacherOAuthAuthorizationUrl,
+  addPhraseToRevision,
   getAssignedHomeworks,
   getBootstrapData,
+  resolveHomeworkByShareToken,
   getInvitationByToken,
   login,
   loginAsDemo,
@@ -290,6 +292,15 @@ app.get("/api/auth/teacher-oauth/:provider/callback", async (request, response, 
   }
 });
 
+app.get("/api/homework-by-token/:shareToken", async (request, response, next) => {
+  try {
+    const session = readRequiredSession(request, "student");
+    response.json(await resolveHomeworkByShareToken(request.params.shareToken, session.userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get("/api/students/:studentId/homeworks", async (request, response, next) => {
   try {
     const session = readRequiredSession(request, "student");
@@ -403,6 +414,21 @@ app.post("/api/homeworks/:homeworkId/submissions", async (request, response, nex
     const session = readRequiredSession(request, "student");
     response.status(201).json(
       await submitHomeworkAnswers(request.params.homeworkId, session.userId, request.body.answers ?? []),
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/revision", async (request, response, next) => {
+  try {
+    const session = readRequiredSession(request, "student");
+    response.status(201).json(
+      await addPhraseToRevision(session.userId, {
+        phrase: String(request.body.phrase ?? ""),
+        context: String(request.body.context ?? ""),
+        lessonId: String(request.body.lessonId ?? ""),
+      }),
     );
   } catch (error) {
     next(error);

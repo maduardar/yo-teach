@@ -5,6 +5,8 @@ import {
   HomeworkSetStatus,
   MembershipRole,
   Prisma,
+  RevisionSourceType,
+  RevisionStatus,
   RevisionStatus as PrismaRevisionStatus,
   StudentStatus,
   UserRole,
@@ -415,7 +417,7 @@ function mapStudent(
     ownerTeacherId: number | null;
     studentInvitations: { token: string; expiresAt: Date | null }[];
   },
-  progress?: { vocabProgress: number; grammarProgress: number; homeworkStreak: number },
+  progress?: { vocabProgress: number; grammarProgress: number; homeworkStreak: number; learnedPhraseCount: number },
 ): StudentRecord {
   const invitation = student.studentInvitations[0];
 
@@ -436,6 +438,7 @@ function mapStudent(
     vocabProgress: progress?.vocabProgress ?? 100,
     grammarProgress: progress?.grammarProgress ?? 100,
     homeworkStreak: progress?.homeworkStreak ?? 0,
+    learnedPhraseCount: progress?.learnedPhraseCount ?? 0,
   };
 }
 
@@ -629,6 +632,26 @@ export async function getBootstrapData(): Promise<AppBootstrapResponse> {
     }),
   ]);
 
+  // Auto-refresh expired invitation tokens for students still in "invited" status
+  for (const student of students) {
+    const invitation = student.studentInvitations[0];
+    if (
+      student.studentStatus === StudentStatus.INVITED &&
+      invitation &&
+      invitation.expiresAt &&
+      invitation.expiresAt.getTime() < Date.now()
+    ) {
+      const newToken = randomBytes(24).toString("hex");
+      const newExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 10);
+      await prisma.studentInvitation.update({
+        where: { token: invitation.token },
+        data: { token: newToken, expiresAt: newExpiresAt },
+      });
+      invitation.token = newToken;
+      invitation.expiresAt = newExpiresAt;
+    }
+  }
+
   const teacherRecords = teachers.map((teacher) => mapTeacher(teacher));
 
   return {
@@ -681,7 +704,11 @@ export async function getBootstrapData(): Promise<AppBootstrapResponse> {
         }
       }
 
-      return mapStudent(student, { vocabProgress, grammarProgress, homeworkStreak });
+      const learnedPhraseCount = revisionItems.filter(
+        (ri) => ri.studentId === studentId && ri.consecutiveCorrect >= 1,
+      ).length;
+
+      return mapStudent(student, { vocabProgress, grammarProgress, homeworkStreak, learnedPhraseCount });
     }),
     lessons: lessons.map((lesson) => mapLesson(lesson)),
     weakPoints: weakPoints.map((weakPoint) => mapWeakPoint(weakPoint)),
@@ -760,7 +787,7 @@ export async function createStudentForGroup(
 
   const username = await createUniqueUsername(firstName, lastName);
   const token = randomBytes(24).toString("hex");
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 10);
 
   const student = await prisma.user.create({
     data: {
@@ -1454,6 +1481,24 @@ export async function completeTeacherOAuth(input: {
   };
 }
 
+export async function resolveHomeworkByShareToken(shareToken: string, studentId: string): Promise<{ homeworkId: string }> {
+  const numericStudentId = parseId(studentId, "Student");
+  const homework = await prisma.homeworkSet.findUnique({
+    where: { shareToken },
+    select: { id: true, groupId: true, status: true },
+  });
+  if (!homework || homework.status !== HomeworkSetStatus.PUBLISHED) {
+    throw new ApiError(404, "Homework not found.");
+  }
+  const membership = await prisma.groupMembership.findFirst({
+    where: { userId: numericStudentId, groupId: homework.groupId },
+  });
+  if (!membership) {
+    throw new ApiError(403, "You do not have access to this homework.");
+  }
+  return { homeworkId: serializeId(homework.id) };
+}
+
 export async function getAssignedHomeworks(studentId: string): Promise<AssignedHomeworkResponse> {
   const numericStudentId = parseId(studentId, "Student");
   const memberships = await prisma.groupMembership.findMany({
@@ -1494,4 +1539,43 @@ export async function getAssignedHomeworks(studentId: string): Promise<AssignedH
   return {
     homeworks: homeworks.map((homework) => mapHomeworkRecord(homework)),
   };
+}
+
+export async function addPhraseToRevision(
+  studentId: string,
+  input: { phrase: string; context: string; lessonId: string },
+): Promise<{ revisionItem: RevisionItemRecord }> {
+  const numericStudentId = parseId(studentId, "Student");
+  const numericLessonId = parseId(input.lessonId, "Lesson");
+  const entityKey = `manual:${numericLessonId}:${input.phrase.toLowerCase().trim()}`;
+
+  const existing = await prisma.revisionItem.findUnique({
+    where: { studentId_entityKey: { studentId: numericStudentId, entityKey } },
+  });
+  if (existing) {
+    return { revisionItem: mapRevisionItem(existing) };
+  }
+
+  const now = new Date();
+  const nextReviewAt = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+
+  const created = await prisma.revisionItem.create({
+    data: {
+      studentId: numericStudentId,
+      sourceType: RevisionSourceType.VOCABULARY,
+      sourceId: numericLessonId,
+      entityKey,
+      phrase: input.phrase,
+      context: input.context,
+      prompt: `What does "${input.phrase}" mean?`,
+      answer: input.context,
+      dueDate: nextReviewAt,
+      nextReviewAt,
+      intervalDays: 1,
+      consecutiveCorrect: 0,
+      status: RevisionStatus.DUE,
+    },
+  });
+
+  return { revisionItem: mapRevisionItem(created) };
 }

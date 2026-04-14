@@ -28,7 +28,10 @@ import HomeworkExercise from "./pages/student/HomeworkExercise";
 import HomeworkResults from "./pages/student/HomeworkResults";
 import StudentRevision from "./pages/student/Revision";
 import StudentProgress from "./pages/student/Progress";
+import StudentVocab from "./pages/student/Vocab";
+import HomeworkReview from "./pages/student/HomeworkReview";
 import StudentInvitation from "./pages/student/Invitation";
+import HomeworkByToken from "./pages/student/HomeworkByToken";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +46,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/invite/:token" element={<StudentInvitation />} />
+          <Route path="/hw/:shareToken" element={<HomeworkByToken />} />
 
             {/* Teacher */}
             <Route path="/teacher" element={<TeacherLayout />}>
@@ -64,8 +68,10 @@ const App = () => (
               <Route path="homework" element={<StudentHomework />} />
               <Route path="homework/exercise" element={<HomeworkExercise />} />
               <Route path="homework/results" element={<HomeworkResults />} />
+              <Route path="homework/review" element={<HomeworkReview />} />
               <Route path="revision" element={<StudentRevision />} />
               <Route path="progress" element={<StudentProgress />} />
+              <Route path="vocab" element={<StudentVocab />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
