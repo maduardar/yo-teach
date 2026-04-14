@@ -1,0 +1,336 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  TEACHER
+  STUDENT
+}
+
+enum MembershipRole {
+  TEACHER
+  STUDENT
+}
+
+enum HomeworkSetStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum HomeworkExerciseType {
+  GAP_FILL
+  MULTIPLE_CHOICE
+  PHRASE_EXPLANATION
+  MATCHING
+  OPEN_ANSWER
+  ERROR_CORRECTION
+  SENTENCE_BUILDING
+}
+
+enum HomeworkSubmissionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  REVIEWED
+}
+
+enum WeakPointSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum WeakPointSource {
+  LESSON_MISTAKE
+  HOMEWORK_SUBMISSION
+  TEACHER_REVIEW
+}
+
+enum RevisionSourceType {
+  VOCABULARY
+  GRAMMAR
+  HOMEWORK_MISTAKE
+  LESSON_MISTAKE
+  WEAK_POINT
+}
+
+enum RevisionStatus {
+  DUE
+  DONE
+  SNOOZED
+}
+
+enum StudentStatus {
+  INVITED
+  ACTIVE
+  INACTIVE
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+  YANDEX
+}
+
+model User {
+  id                    Int                     @id @default(autoincrement())
+  email                 String?                 @unique
+  username              String?                 @unique
+  firstName             String
+  lastName              String
+  name                  String
+  avatar                String?
+  role                  UserRole
+  telegramHandle        String?
+  phoneNumber           String?
+  studentStatus         StudentStatus?
+  passwordHash          String?
+  emailVerifiedAt       DateTime?
+  ownerTeacherId        Int?
+  ownerTeacher          User?                   @relation("TeacherOwnedStudents", fields: [ownerTeacherId], references: [id], onDelete: SetNull)
+  ownedStudents         User[]                  @relation("TeacherOwnedStudents")
+  memberships           GroupMembership[]
+  studentInvitations    StudentInvitation[]     @relation("InvitationStudent")
+  sentStudentInvites    StudentInvitation[]     @relation("InvitationTeacher")
+  taughtLessons         Lesson[]                @relation("LessonTeacher")
+  createdHomeworkSets   HomeworkSet[]           @relation("HomeworkSetCreator")
+  homeworkSubmissions   HomeworkSubmission[]    @relation("SubmissionStudent")
+  lessonMistakes        LessonStudentMistake[]  @relation("MistakeStudent")
+  weakPoints            StudentWeakPoint[]      @relation("WeakPointStudent")
+  revisionItems         RevisionItem[]          @relation("RevisionStudent")
+  authIdentities        AuthIdentity[]
+  emailVerifications    TeacherEmailVerification[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+}
+
+model Group {
+  id            Int                @id @default(autoincrement())
+  name          String
+  level         String
+  lastLessonAt  DateTime?
+  memberships   GroupMembership[]
+  invitations   StudentInvitation[]
+  lessons       Lesson[]
+  homeworkSets  HomeworkSet[]
+  weakPoints    StudentWeakPoint[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model GroupMembership {
+  id              Int             @id @default(autoincrement())
+  groupId         Int
+  userId          Int
+  membershipRole  MembershipRole
+  group           Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([groupId, userId])
+}
+
+model StudentInvitation {
+  id          Int       @id @default(autoincrement())
+  studentId   Int
+  groupId     Int
+  teacherId   Int
+  token       String    @unique
+  expiresAt   DateTime?
+  consumedAt  DateTime?
+  student     User      @relation("InvitationStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher     User      @relation("InvitationTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AuthIdentity {
+  id              Int          @id @default(autoincrement())
+  userId          Int
+  provider        AuthProvider
+  providerUserId  String
+  email           String?
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([provider, providerUserId])
+}
+
+model TeacherEmailVerification {
+  id          Int       @id @default(autoincrement())
+  userId       Int
+  token       String    @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Lesson {
+  id                  Int                   @id @default(autoincrement())
+  groupId             Int
+  teacherId           Int
+  title               String
+  lessonDate          DateTime
+  notes               String?
+  group               Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher             User                  @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  grammarItems        LessonGrammarItem[]
+  vocabItems          LessonVocabItem[]
+  studentMistakes     LessonStudentMistake[]
+  homeworkSets        HomeworkSet[]
+  weakPoints          StudentWeakPoint[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+}
+
+model LessonGrammarItem {
+  id         Int      @id @default(autoincrement())
+  lessonId   Int
+  sortOrder  Int
+  title      String
+  lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model LessonVocabItem {
+  id         Int      @id @default(autoincrement())
+  lessonId   Int
+  sortOrder  Int
+  phrase     String
+  context    String?
+  lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model LessonStudentMistake {
+  id          Int      @id @default(autoincrement())
+  lessonId    Int
+  studentId   Int
+  mistake     String
+  correction  String?
+  category    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student     User     @relation("MistakeStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model HomeworkSet {
+  id                         Int                  @id @default(autoincrement())
+  groupId                    Int
+  lessonId                   Int
+  createdById                Int
+  title                      String
+  dueDate                    DateTime
+  status                     HomeworkSetStatus
+  shareToken                 String               @unique
+  compositionLatestLessonPct Int?
+  compositionRevisionPct     Int?
+  compositionWeakPointsPct   Int?
+  group                      Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  lesson                     Lesson               @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  createdBy                  User                 @relation("HomeworkSetCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  exercises                  HomeworkExercise[]
+  submissions                HomeworkSubmission[]
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+}
+
+model HomeworkExercise {
+  id            Int                 @id @default(autoincrement())
+  homeworkSetId Int
+  sortOrder    Int
+  type         HomeworkExerciseType
+  instruction  String
+  payload      Json
+  homeworkSet  HomeworkSet          @relation(fields: [homeworkSetId], references: [id], onDelete: Cascade)
+  answers      HomeworkAnswer[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+}
+
+model HomeworkSubmission {
+  id            Int                     @id @default(autoincrement())
+  homeworkSetId Int
+  studentId     Int
+  status       HomeworkSubmissionStatus
+  score        Int?
+  startedAt    DateTime?
+  submittedAt  DateTime?
+  homeworkSet  HomeworkSet              @relation(fields: [homeworkSetId], references: [id], onDelete: Cascade)
+  student      User                     @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  answers      HomeworkAnswer[]
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@unique([homeworkSetId, studentId])
+}
+
+model HomeworkAnswer {
+  id            Int                 @id @default(autoincrement())
+  submissionId  Int
+  exerciseId    Int
+  questionKey   String
+  answerValue   Json
+  correctValue  Json?
+  isCorrect     Boolean?
+  submittedAt   DateTime?
+  submission    HomeworkSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  exercise      HomeworkExercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model StudentWeakPoint {
+  id          Int                @id @default(autoincrement())
+  studentId   Int
+  groupId     Int
+  lessonId    Int?
+  area        String
+  category    String
+  severity    WeakPointSeverity
+  source      WeakPointSource
+  note        String?
+  student     User               @relation("WeakPointStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  group       Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  lesson      Lesson?            @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model RevisionItem {
+  id              Int                @id @default(autoincrement())
+  studentId       Int
+  sourceType      RevisionSourceType
+  sourceId        Int?
+  entityKey       String
+  phrase          String?
+  context         String?
+  prompt          String
+  answer          String
+  dueDate         DateTime
+  nextReviewAt    DateTime
+  intervalDays    Int                @default(3)
+  consecutiveCorrect Int             @default(0)
+  status          RevisionStatus
+  lastReviewedAt  DateTime?
+  lastResult      Boolean?
+  student         User               @relation("RevisionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([studentId, entityKey])
+}
