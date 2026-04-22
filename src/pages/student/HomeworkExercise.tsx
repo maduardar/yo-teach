@@ -88,16 +88,39 @@ function buildMatchingState(exercises: HomeworkExerciseRecord[]) {
   ) as Record<string, string[]>;
 }
 
+/**
+ * Extract inline guidance hints like "(take)" that appear right after each "___" blank.
+ * Returns cleaned segments (without the parenthetical) and per-gap hints.
+ */
+function extractInlineHints(text: string): { segments: string[]; inlineHints: string[] } {
+  // Split on ___ possibly followed by optional whitespace and a parenthetical hint
+  const parts = text.split(/___\s*(?:\(([^)]*)\))?/);
+  // parts alternates: segment, captured hint (or undefined), segment, hint, …
+  const segments: string[] = [];
+  const inlineHints: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      segments.push(parts[i]);
+    } else {
+      inlineHints.push(parts[i] ?? "");
+    }
+  }
+  return { segments, inlineHints };
+}
+
 function renderGapFillSentence(
   question: ExerciseQuestion,
   value: string,
   onChange: (nextValue: string) => void,
 ) {
-  const segments = question.text.split("___");
+  const { segments, inlineHints } = extractInlineHints(question.text);
   const blankCount = segments.length - 1;
-  const hint = question.hint ?? "";
+  // Per-gap hint: prefer inline hint extracted from text, fall back to question.hint for single-gap
+  const getHint = (gapIndex: number) =>
+    inlineHints[gapIndex] || (blankCount === 1 ? question.hint ?? "" : "") || "";
 
   if (segments.length === 1) {
+    const hint = question.hint ?? "";
     return (
       <div className="space-y-3">
         <p className="text-base font-medium leading-7">{question.text}</p>
@@ -113,6 +136,7 @@ function renderGapFillSentence(
   }
 
   if (blankCount === 1) {
+    const hint = getHint(0);
     const blankWidth = `${Math.max(hint.length || String(question.answer).length + 2, 8)}ch`;
     return (
       <label className="block text-base font-medium leading-8 text-foreground">
@@ -149,7 +173,7 @@ function renderGapFillSentence(
             <Input
               value={gapValues[index] ?? ""}
               onChange={(event) => updateGap(index, event.target.value)}
-              placeholder={index === 0 && hint ? hint : ""}
+              placeholder={getHint(index)}
               className="mx-1 inline-flex h-9 w-28 rounded-none border-0 border-b-2 border-primary/40 bg-transparent px-0 text-center text-base font-semibold shadow-none focus-visible:ring-0 placeholder:font-normal placeholder:text-muted-foreground/50"
               data-testid={`gap-fill-input-${question.id}-${index}`}
             />
