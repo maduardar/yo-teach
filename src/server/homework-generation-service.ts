@@ -892,14 +892,29 @@ export function mapHomeworkRecord(homework: {
             currentExercise?.type === "matching"
               ? currentExercise.instruction
               : currentExercise?.questions.find((question) => question.id === answer.questionKey)?.text ?? null;
+          let displayAnswer: string | number | string[] | null = (answer.answerValue as string | number | string[] | null) ?? null;
+          let displayCorrect: string | number | string[] | null = (answer.correctValue as string | number | string[] | null) ?? null;
+          if (answer.exercise.type === HomeworkExerciseType.MULTIPLE_CHOICE && currentExercise?.type === "multiple-choice") {
+            const question = currentExercise.questions.find((q) => q.id === answer.questionKey);
+            if (question?.options) {
+              const selIdx = typeof displayAnswer === "number" ? displayAnswer : Number(displayAnswer);
+              if (Number.isInteger(selIdx) && selIdx >= 0 && selIdx < question.options.length) {
+                displayAnswer = question.options[selIdx];
+              }
+              const corIdx = typeof displayCorrect === "number" ? displayCorrect : Number(displayCorrect);
+              if (Number.isInteger(corIdx) && corIdx >= 0 && corIdx < question.options.length) {
+                displayCorrect = question.options[corIdx];
+              }
+            }
+          }
           return {
             exerciseId: serializeId(answer.exerciseId),
             exerciseType: asFrontendType(answer.exercise.type),
             instruction: answer.exercise.instruction,
             questionKey: answer.questionKey,
             questionPrompt,
-            answerValue: (answer.answerValue as string | number | string[] | null) ?? null,
-            correctValue: (answer.correctValue as string | number | string[] | null) ?? null,
+            answerValue: displayAnswer,
+            correctValue: displayCorrect,
             isCorrect: answer.isCorrect,
           };
         }) ?? [],
@@ -1133,6 +1148,9 @@ function sanitizeOpenAIExerciseShape(exercise: unknown) {
       }
       if (type === "MULTIPLE_CHOICE" && nextQuestion.correctOptionIndex == null) {
         nextQuestion.correctOptionIndex = 0;
+      }
+      if (type === "SENTENCE_BUILDING" && Array.isArray(nextQuestion.tokens) && nextQuestion.tokens.length > 1) {
+        nextQuestion.tokens = shuffleDeterministically(nextQuestion.tokens as string[]);
       }
       return nextQuestion;
     }) ?? questions;
@@ -3208,13 +3226,26 @@ export async function submitHomeworkAnswers(
       },
     });
 
+    let displayAnswerValue: string | number | string[] = submittedAnswer.value;
+    let displayCorrectValue: string | number | string[] | null = correctValue;
+    if (exercise.type === "multiple-choice" && question.options) {
+      const selectedIdx = typeof submittedAnswer.value === "number" ? submittedAnswer.value : Number(submittedAnswer.value);
+      displayAnswerValue = Number.isInteger(selectedIdx) && selectedIdx >= 0 && selectedIdx < question.options.length
+        ? question.options[selectedIdx]
+        : String(submittedAnswer.value);
+      const correctIdx = typeof correctValue === "number" ? correctValue : Number(correctValue);
+      displayCorrectValue = Number.isInteger(correctIdx) && correctIdx >= 0 && correctIdx < question.options.length
+        ? question.options[correctIdx]
+        : correctValue;
+    }
+
     answerResults.push({
       exerciseId: submittedAnswer.exerciseId,
       exerciseType: exercise.type,
       questionKey: submittedAnswer.questionKey,
       questionText: question.text,
-      answerValue: submittedAnswer.value,
-      correctValue,
+      answerValue: displayAnswerValue,
+      correctValue: displayCorrectValue,
       isCorrect,
       explanation: evaluation?.explanation ?? null,
     });
